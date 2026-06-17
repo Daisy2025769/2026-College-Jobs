@@ -12,18 +12,34 @@ MCF_API = "https://api.mycareersfuture.gov.sg/v2/jobs"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 MAX_EXPERIENCE_YEARS = 3
 
+# Specific role searches at financial firms
 FINANCE_SECTOR_SEARCHES = [
-    "banking", "investment", "asset management", "insurance", "fintech",
-    "private equity", "hedge fund", "wealth management", "capital markets",
+    "bank analyst", "bank associate", "investment analyst",
+    "asset management analyst", "fund operations", "trade operations",
+    "treasury analyst", "risk analyst", "compliance analyst",
+    "fintech analyst", "private equity analyst", "capital markets analyst",
+    "wealth management analyst", "credit analyst", "equity research",
 ]
 
+# Finance roles in any company
 FINANCE_ROLE_SEARCHES = [
-    "finance analyst", "financial analyst", "FP&A", "financial planning",
-    "finance operations", "financial operations", "management accounting",
-    "business finance", "corporate finance",
+    "finance analyst", "financial analyst", "FP&A",
+    "financial planning analyst", "finance operations",
+    "management accounting", "corporate finance analyst",
+    "finance associate", "accounts analyst",
 ]
 
 ENTRY_LEVELS = {"Entry Level", "Junior Executive", "Executive"}
+
+# Exclude titles containing these words (case-insensitive)
+EXCLUDE_TITLE_KEYWORDS = [
+    "insurance agent", "financial advisor", "financial consultant",
+    "sales", "agent", "promoter", "freelance", "commission",
+    "part-time", "part time", "temporary", "temp ", "contract staff",
+]
+
+# Must be full-time employment
+EMPLOYMENT_TYPES_ALLOWED = {"Permanent", "Full Time"}
 
 
 def fetch_jobs(search_term: str, limit: int = 100) -> list[dict]:
@@ -49,8 +65,40 @@ def fetch_jobs(search_term: str, limit: int = 100) -> list[dict]:
     return jobs
 
 
+def is_singapore(raw: dict) -> bool:
+    address = raw.get("address") or {}
+    country = (address.get("country") or "").lower()
+    postal = address.get("postalCode") or ""
+    # Singapore postal codes are 6 digits; country should be "singapore"
+    if country and "singapore" not in country:
+        return False
+    if postal and not postal.isdigit():
+        return False
+    return True
+
+
+def is_full_time(raw: dict) -> bool:
+    types = {e.get("employmentType", "") for e in raw.get("employmentTypes", [])}
+    return bool(types.intersection(EMPLOYMENT_TYPES_ALLOWED))
+
+
+def has_excluded_title(title: str) -> bool:
+    title_lower = title.lower()
+    return any(kw in title_lower for kw in EXCLUDE_TITLE_KEYWORDS)
+
+
 def parse_job(raw: dict, category: str) -> dict | None:
     try:
+        title = raw.get("title", "")
+
+        # Exclude unwanted titles
+        if has_excluded_title(title):
+            return None
+
+        # Full-time only
+        if not is_full_time(raw):
+            return None
+
         # Experience filter
         min_exp = raw.get("minimumYearsExperience") or 0
         if min_exp > MAX_EXPERIENCE_YEARS:
@@ -61,10 +109,8 @@ def parse_job(raw: dict, category: str) -> dict | None:
         if levels and not levels.intersection(ENTRY_LEVELS):
             return None
 
-        # Location — Singapore only
-        address = raw.get("address", {}) or {}
-        location = address.get("streetName") or "Singapore"
-        if "singapore" not in (raw.get("address", {}) or {}).get("country", "Singapore").lower():
+        # Strict Singapore location
+        if not is_singapore(raw):
             return None
 
         posted_str = (raw.get("metadata") or {}).get("createdAt", "")
@@ -74,9 +120,9 @@ def parse_job(raw: dict, category: str) -> dict | None:
 
         return {
             "id": raw["uuid"],
-            "title": raw.get("title", ""),
+            "title": title,
             "company": (raw.get("postedCompany") or {}).get("name", ""),
-            "location": location,
+            "location": "Singapore",
             "url": f"https://www.mycareersfuture.gov.sg/job/{raw['uuid']}",
             "category": category,
             "date_posted": date_posted.isoformat(),
@@ -90,7 +136,10 @@ def parse_job(raw: dict, category: str) -> dict | None:
 def upsert_jobs(jobs: list[dict]):
     if not jobs:
         return
-    supabase.table("sg_finance_jobs").upsert(jobs, on_conflict="id").execute()
+    # Upsert in batches of 500 to avoid payload limits
+    for i in range(0, len(jobs), 500):
+        batch = jobs[i:i + 500]
+        supabase.table("sg_finance_jobs").upsert(batch, on_conflict="id").execute()
 
 
 def remove_expired():
