@@ -34,8 +34,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
+      - name: Pull latest changes
+        run: git pull --rebase origin main
+
       - name: Commit and push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update SG finance jobs"
           file_pattern: SG_FINANCE_OPS_GRAD.md
+          push_options: '--force'
