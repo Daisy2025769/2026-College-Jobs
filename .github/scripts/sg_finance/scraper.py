@@ -42,10 +42,9 @@ EXCLUDE_TITLE_KEYWORDS = [
 EMPLOYMENT_TYPES_ALLOWED = {"Permanent", "Full Time"}
 
 
-def fetch_jobs(search_term: str, limit: int = 100) -> list[dict]:
+def fetch_jobs(search_term: str, limit: int = 100, max_pages: int = 3) -> list[dict]:
     jobs = []
-    page = 0
-    while True:
+    for page in range(max_pages):
         params = {
             "search": search_term,
             "limit": limit,
@@ -61,7 +60,6 @@ def fetch_jobs(search_term: str, limit: int = 100) -> list[dict]:
         jobs.extend(results)
         if len(results) < limit:
             break
-        page += 1
     return jobs
 
 
