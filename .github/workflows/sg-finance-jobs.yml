@@ -35,12 +35,7 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
       - name: Commit and push
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git reset --soft origin/main
-          git add SG_FINANCE_OPS_GRAD.md
-          git diff --staged --exit-code || git commit -m "chore: update SG finance jobs"
-          git pull origin main --rebase
-          git push origin HEAD:main
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update SG finance jobs"
+          file_pattern: SG_FINANCE_OPS_GRAD.md
