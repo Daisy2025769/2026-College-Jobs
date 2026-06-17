@@ -42,4 +42,5 @@ jobs:
           git reset --soft origin/main
           git add SG_FINANCE_OPS_GRAD.md
           git diff --staged --exit-code || git commit -m "chore: update SG finance jobs"
+          git pull origin main --rebase
           git push origin HEAD:main
