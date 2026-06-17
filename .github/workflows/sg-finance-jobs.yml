@@ -1,0 +1,41 @@
+name: SG Finance Jobs — Scrape and Update
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # runs daily at 1am UTC (9am Singapore time)
+  workflow_dispatch:
+
+jobs:
+  update-sg-finance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r .github/scripts/sg_finance/requirements.txt
+
+      - name: Scrape jobs from MyCareersFuture
+        run: python .github/scripts/sg_finance/scraper.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+      - name: Generate markdown file
+        run: python .github/scripts/sg_finance/generate_md.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+      - name: Commit and push
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add SG_FINANCE_OPS_GRAD.md
+          git diff --staged --exit-code || git commit -m "chore: update SG finance jobs"
+          git push
